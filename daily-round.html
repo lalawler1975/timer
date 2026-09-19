@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Daily Round</title>
+<style>
+  :root {
+    --bg: #101418;
+    --fg: #f5f5f5;
+    --dim: #9fb3c8;
+    --accent: #3ba55d;
+    --accent2: #2b7a45;
+    --panel: #1c2229;
+    --border: #2f3944;
+    --danger: #d9453e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    overscroll-behavior-y: contain;
+  }
+  body {
+    min-height: 100vh;
+    padding: max(2.5vh, env(safe-area-inset-top)) 4vw max(3vh, env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .wrap { width: 100%; max-width: 640px; }
+
+  header { text-align: center; margin-bottom: 2.2vh; }
+  h1 {
+    margin: 0 0 0.3em 0;
+    font-size: clamp(22px, 5vw, 32px);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  #dateLine { color: var(--dim); font-size: clamp(14px, 2.6vw, 18px); margin-bottom: 1.4vh; }
+
+  #status {
+    border-radius: 18px;
+    padding: 0.9em 1em;
+    font-weight: 700;
+    font-size: clamp(17px, 3.6vw, 22px);
+    background: var(--panel);
+    border: 2px solid var(--border);
+    color: var(--dim);
+    transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+  }
+  #status.done {
+    background: var(--accent2);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  #status.celebrate { animation: celebrate 0.6s ease; }
+  @keyframes celebrate {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.06); }
+    60% { transform: scale(0.98); }
+    100% { transform: scale(1); }
+  }
+
+  #list { display: flex; flex-direction: column; gap: 1.4vh; margin-top: 2.2vh; }
+
+  .item {
+    position: relative;
+    overflow: hidden;
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 18px;
+    padding: 1.1em 1.2em;
+    min-height: 74px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3vw;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+  }
+  .item .fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 0%;
+    background: rgba(59, 165, 93, 0.35);
+    pointer-events: none;
+    transition: width 0.05s linear;
+  }
+  .item .name {
+    position: relative;
+    font-size: clamp(17px, 4vw, 22px);
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .item .time {
+    position: relative;
+    font-size: clamp(14px, 3vw, 18px);
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .item .check {
+    position: relative;
+    font-size: clamp(20px, 4.4vw, 26px);
+    width: 1.3em;
+    flex-shrink: 0;
+    text-align: center;
+    color: var(--border);
+  }
+  .item.done {
+    border-color: var(--accent);
+    background: #16241c;
+  }
+  .item.done .check { color: var(--accent); }
+  .item.done .time { color: var(--accent); }
+  .item.pressing { border-color: var(--accent); }
+
+  #historyBtn {
+    margin-top: 3vh;
+    width: 100%;
+    padding: 0.9em;
+    font-size: clamp(15px, 3.4vw, 19px);
+    font-weight: 600;
+    background: transparent;
+    color: var(--dim);
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    cursor: pointer;
+  }
+  #historyBtn:active { border-color: var(--accent); color: var(--fg); }
+
+  .hint {
+    text-align: center;
+    color: var(--dim);
+    font-size: clamp(12px, 2.6vw, 14px);
+    margin-top: 1.6vh;
+    opacity: 0.75;
+  }
+
+  /* ---- History overlay ---- */
+  #historyOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 20;
+    padding: max(2.5vh, env(safe-area-inset-top)) 4vw max(3vh, env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+  #historyOverlay.open { display: block; }
+  .history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 640px;
+    margin: 0 auto 2vh;
+  }
+  .history-head h2 { margin: 0; font-size: clamp(20px, 4.6vw, 26px); }
+  #closeHistory {
+    font-size: clamp(15px, 3.2vw, 18px);
+    font-weight: 700;
+    background: var(--panel);
+    color: var(--fg);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 0.5em 1em;
+    cursor: pointer;
+  }
+  #historyList { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.6vh; }
+  .day-card {
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    padding: 1em 1.1em;
+    background: var(--panel);
+  }
+  .day-card.complete { border-color: var(--accent); }
+  .day-card .day-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.7em;
+    flex-wrap: wrap;
+    gap: 0.4em;
+  }
+  .day-card .day-date { font-weight: 700; font-size: clamp(15px, 3.4vw, 18px); }
+  .day-card .day-summary { font-size: clamp(13px, 2.8vw, 15px); color: var(--dim); }
+  .day-card.complete .day-summary { color: var(--accent); }
+  .day-card .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 2vw;
+    font-size: clamp(13px, 3vw, 16px);
+    padding: 0.35em 0;
+    border-top: 1px solid var(--border);
+  }
+  .day-card .row:first-of-type { border-top: none; }
+  .day-card .row .rname { color: var(--fg); }
+  .day-card .row.notdone .rname { color: var(--dim); }
+  .day-card .row .rtime { color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .day-card .row.notdone .rtime { color: var(--danger); }
+  #emptyHistory { color: var(--dim); text-align: center; margin-top: 4vh; font-size: clamp(14px, 3vw, 17px); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Daily Round</h1>
+    <div id="dateLine"></div>
+    <div id="status"></div>
+  </header>
+
+  <div id="list"></div>
+
+  <button id="historyBtn">History</button>
+  <div class="hint">Press and hold an item to mark it done. Hold again to undo.</div>
+</div>
+
+<div id="historyOverlay">
+  <div class="history-head">
+    <h2>History</h2>
+    <button id="closeHistory">Close</button>
+  </div>
+  <div id="historyList"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var ITEMS = [
+    { id: "walk1",     name: "Walk" },
+    { id: "breakfast", name: "Breakfast that meets macros" },
+    { id: "stretch1",  name: "Stretch break" },
+    { id: "lunch",     name: "Lunch that meets macros" },
+    { id: "stretch2",  name: "Stretch break" },
+    { id: "dinner",    name: "Dinner that meets macros" },
+    { id: "walk2",     name: "Evening walk" },
+    { id: "exercise",  name: "Exercise session" }
+  ];
+
+  var KEY_DATE = "dailyRound.currentDate";
+  var KEY_TODAY = "dailyRound.todayState";
+  var KEY_HISTORY = "dailyRound.history";
+
+  var HOLD_MS = 550;
+  var MOVE_CANCEL_PX = 18;
+
+  var listEl = document.getElementById("list");
+  var statusEl = document.getElementById("status");
+  var dateLineEl = document.getElementById("dateLine");
+  var historyOverlay = document.getElementById("historyOverlay");
+  var historyListEl = document.getElementById("historyList");
+
+  var todayState = null;   // { id: { done, time } }
+  var currentDate = null;  // "YYYY-MM-DD" this state belongs to
+
+  function pad2(n) { return n < 10 ? "0" + n : "" + n; }
+
+  function localDateStr(d) {
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
+  function friendlyDate(dateStr) {
+    var parts = dateStr.split("-").map(Number);
+    var d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  }
+
+  function formatTime(ms) {
+    return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+
+  function readJSON(key, fallback) {
+    try {
+      var v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : fallback;
+    } catch (e) { return fallback; }
+  }
+
+  function writeJSON(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
+
+  function freshState() {
+    var s = {};
+    ITEMS.forEach(function (it) { s[it.id] = { done: false, time: null }; });
+    return s;
+  }
+
+  function snapshotForHistory(dateStr, state) {
+    return ITEMS.map(function (it) {
+      var e = state[it.id] || { done: false, time: null };
+      return { id: it.id, name: it.name, done: !!e.done, time: e.time || null };
+    });
+  }
+
+  function loadOrRollover() {
+    var storedDate = localStorage.getItem(KEY_DATE);
+    var storedState = readJSON(KEY_TODAY, null);
+    var today = localDateStr(new Date());
+
+    if (!storedDate || !storedState) {
+      currentDate = today;
+      todayState = freshState();
+      persistToday();
+      return;
+    }
+
+    if (storedDate === today) {
+      currentDate = storedDate;
+      todayState = storedState;
+      return;
+    }
+
+    // Date has moved on (or been forced) since we last saved: archive the old day, honestly, as-is.
+    var history = readJSON(KEY_HISTORY, {});
+    history[storedDate] = snapshotForHistory(storedDate, storedState);
+    writeJSON(KEY_HISTORY, history);
+
+    currentDate = today;
+    todayState = freshState();
+    persistToday();
+  }
+
+  function persistToday() {
+    localStorage.setItem(KEY_DATE, currentDate);
+    writeJSON(KEY_TODAY, todayState);
+  }
+
+  function counts() {
+    var done = 0;
+    ITEMS.forEach(function (it) { if (todayState[it.id] && todayState[it.id].done) done++; });
+    return { done: done, total: ITEMS.length, left: ITEMS.length - done };
+  }
+
+  function render(celebrate) {
+    dateLineEl.textContent = friendlyDate(currentDate);
+
+    var c = counts();
+    var left = c.total - c.done;
+    if (left === 0) {
+      statusEl.textContent = "All " + c.total + " done for today.";
+      statusEl.classList.add("done");
+    } else {
+      statusEl.textContent = left + " of " + c.total + " left";
+      statusEl.classList.remove("done");
+    }
+    if (celebrate) {
+      statusEl.classList.remove("celebrate");
+      void statusEl.offsetWidth;
+      statusEl.classList.add("celebrate");
+    }
+
+    listEl.innerHTML = "";
+    ITEMS.forEach(function (it) {
+      var entry = todayState[it.id] || { done: false, time: null };
+      var row = document.createElement("div");
+      row.className = "item" + (entry.done ? " done" : "");
+      row.setAttribute("data-id", it.id);
+
+      var fill = document.createElement("div");
+      fill.className = "fill";
+      row.appendChild(fill);
+
+      var check = document.createElement("div");
+      check.className = "check";
+      check.textContent = entry.done ? "✓" : "○";
+      row.appendChild(check);
+
+      var name = document.createElement("div");
+      name.className = "name";
+      name.textContent = it.name;
+      name.style.flex = "1";
+      row.appendChild(name);
+
+      var time = document.createElement("div");
+      time.className = "time";
+      time.textContent = entry.done && entry.time ? formatTime(entry.time) : "";
+      row.appendChild(time);
+
+      attachHold(row, it.id);
+      listEl.appendChild(row);
+    });
+  }
+
+  function toggleItem(id) {
+    var entry = todayState[id];
+    if (!entry) return;
+    if (entry.done) {
+      entry.done = false;
+      entry.time = null;
+    } else {
+      entry.done = true;
+      entry.time = Date.now();
+    }
+    persistToday();
+    var c = counts();
+    var justCompleted = entry.done && (c.total - c.done === 0);
+    render(justCompleted);
+    if (justCompleted && navigator.vibrate) {
+      try { navigator.vibrate([40, 60, 40, 60, 90]); } catch (e) {}
+    } else if (navigator.vibrate) {
+      try { navigator.vibrate(30); } catch (e) {}
+    }
+  }
+
+  /* Press-and-hold to confirm: a brief accidental brush releases before HOLD_MS
+     and does nothing; moving the finger more than MOVE_CANCEL_PX cancels too. */
+  function attachHold(row, id) {
+    var raf = null;
+    var startTime = 0;
+    var startX = 0, startY = 0;
+    var active = false;
+    var fillEl = row.querySelector(".fill");
+
+    function setFill(pct) { fillEl.style.width = pct + "%"; }
+
+    function step() {
+      if (!active) return;
+      var elapsed = Date.now() - startTime;
+      var pct = Math.min(100, (elapsed / HOLD_MS) * 100);
+      setFill(pct);
+      if (elapsed >= HOLD_MS) {
+        finish(true);
+        return;
+      }
+      raf = requestAnimationFrame(step);
+    }
+
+    function begin(x, y) {
+      active = true;
+      startTime = Date.now();
+      startX = x; startY = y;
+      row.classList.add("pressing");
+      raf = requestAnimationFrame(step);
+    }
+
+    function finish(confirmed) {
+      active = false;
+      if (raf) cancelAnimationFrame(raf);
+      row.classList.remove("pressing");
+      setFill(0);
+      if (confirmed) toggleItem(id);
+    }
+
+    row.addEventListener("pointerdown", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      begin(e.clientX, e.clientY);
+    });
+    row.addEventListener("pointermove", function (e) {
+      if (!active) return;
+      var dx = e.clientX - startX, dy = e.clientY - startY;
+      if (Math.sqrt(dx * dx + dy * dy) > MOVE_CANCEL_PX) finish(false);
+    });
+    row.addEventListener("pointerup", function () { finish(false); });
+    row.addEventListener("pointercancel", function () { finish(false); });
+    row.addEventListener("pointerleave", function () { finish(false); });
+    row.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  }
+
+  /* ---- History ---- */
+  function buildDayCard(dateStr, items, isToday) {
+    var doneCount = items.filter(function (i) { return i.done; }).length;
+    var complete = doneCount === items.length;
+
+    var card = document.createElement("div");
+    card.className = "day-card" + (complete ? " complete" : "");
+
+    var head = document.createElement("div");
+    head.className = "day-head";
+    var dateEl = document.createElement("div");
+    dateEl.className = "day-date";
+    dateEl.textContent = friendlyDate(dateStr) + (isToday ? " (today)" : "");
+    var summaryEl = document.createElement("div");
+    summaryEl.className = "day-summary";
+    summaryEl.textContent = complete ? "All " + items.length + " done" : doneCount + " of " + items.length + " done";
+    head.appendChild(dateEl);
+    head.appendChild(summaryEl);
+    card.appendChild(head);
+
+    items.forEach(function (i) {
+      var row = document.createElement("div");
+      row.className = "row" + (i.done ? "" : " notdone");
+      var name = document.createElement("div");
+      name.className = "rname";
+      name.textContent = i.name;
+      var time = document.createElement("div");
+      time.className = "rtime";
+      time.textContent = i.done ? formatTime(i.time) : "not done";
+      row.appendChild(name);
+      row.appendChild(time);
+      card.appendChild(row);
+    });
+
+    return card;
+  }
+
+  function renderHistory() {
+    historyListEl.innerHTML = "";
+    var history = readJSON(KEY_HISTORY, {});
+    var dates = Object.keys(history).sort().reverse();
+
+    historyListEl.appendChild(buildDayCard(currentDate, snapshotForHistory(currentDate, todayState), true));
+
+    if (dates.length === 0) {
+      var empty = document.createElement("div");
+      empty.id = "emptyHistory";
+      empty.textContent = "No past days yet.";
+      historyListEl.appendChild(empty);
+      return;
+    }
+    dates.forEach(function (d) {
+      historyListEl.appendChild(buildDayCard(d, history[d], false));
+    });
+  }
+
+  document.getElementById("historyBtn").addEventListener("click", function () {
+    renderHistory();
+    historyOverlay.classList.add("open");
+  });
+  document.getElementById("closeHistory").addEventListener("click", function () {
+    historyOverlay.classList.remove("open");
+  });
+
+  function checkRolloverAndRender() {
+    var today = localDateStr(new Date());
+    if (currentDate !== today) {
+      loadOrRollover();
+      render(false);
+    }
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) checkRolloverAndRender();
+  });
+  window.addEventListener("focus", checkRolloverAndRender);
+  setInterval(checkRolloverAndRender, 30000);
+
+  /* ---- Test helpers: force a rollover without waiting for real midnight ----
+     Open the browser console (F12) on this page and run:
+       dailyRoundTestRollover()
+     This backdates the saved "current day" to yesterday and reloads, so the
+     app treats today as a brand-new day and archives whatever you had ticked
+     under yesterday's date in History. Undo with:
+       dailyRoundClearTestDay()
+  */
+  window.dailyRoundTestRollover = function () {
+    var d = new Date();
+    d.setDate(d.getDate() - 1);
+    localStorage.setItem(KEY_DATE, localDateStr(d));
+    location.reload();
+  };
+  window.dailyRoundClearTestDay = function (dateStr) {
+    var history = readJSON(KEY_HISTORY, {});
+    if (!dateStr) {
+      var d = new Date();
+      d.setDate(d.getDate() - 1);
+      dateStr = localDateStr(d);
+    }
+    delete history[dateStr];
+    writeJSON(KEY_HISTORY, history);
+    console.log("Removed history entry for " + dateStr);
+  };
+
+  loadOrRollover();
+  render(false);
+})();
+</script>
+</body>
+</html>
